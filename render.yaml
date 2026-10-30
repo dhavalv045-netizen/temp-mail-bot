@@ -13,7 +13,7 @@ services:
       - key: ADMIN_TELEGRAM_ID
         sync: false
       - key: DOMAIN
-        value: deeptracex.online
+        value: accounthub.live
       - key: FORWARD_TO_EMAIL
         sync: false
       - key: WEBHOOK_SECRET
