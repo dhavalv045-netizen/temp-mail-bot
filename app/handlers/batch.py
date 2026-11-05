@@ -18,7 +18,7 @@ from app.mail_lookup import find_otp_in_message
 _auth_attempts = {}
 _generating = set()
 _checking = set()
-CHECK_COOLDOWN = 15
+CHECK_COOLDOWN = 0
 
 
 async def access_guard(update, context):
