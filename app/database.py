@@ -49,6 +49,23 @@ def init_db() -> None:
     conn = _get_conn()
     conn.executescript(
         """
+        CREATE TABLE IF NOT EXISTS authorized_users (
+            telegram_user_id INTEGER PRIMARY KEY,
+            authorized_at TEXT NOT NULL,
+            last_mail_check REAL NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS mail_batches (
+            batch_id TEXT PRIMARY KEY,
+            telegram_user_id INTEGER NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS mail_batch_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            batch_id TEXT NOT NULL,
+            alias_id TEXT NOT NULL,
+            email_address TEXT NOT NULL,
+            otp TEXT,
+            UNIQUE(batch_id, alias_id)
+        );
         CREATE TABLE IF NOT EXISTS users (
             telegram_user_id INTEGER PRIMARY KEY,
             username         TEXT,
@@ -220,3 +237,55 @@ async def admin_totals() -> dict:
         users = conn.execute("SELECT COUNT(*) c FROM users").fetchone()["c"]
         aliases = conn.execute("SELECT COUNT(*) c FROM aliases").fetchone()["c"]
         return {"users": users, "aliases": aliases}
+
+
+
+async def is_authorized(user_id: int) -> bool:
+    async with _lock:
+        return _get_conn().execute("SELECT 1 FROM authorized_users WHERE telegram_user_id=?", (user_id,)).fetchone() is not None
+
+
+async def authorize_user(user_id: int) -> None:
+    async with _lock:
+        conn = _get_conn()
+        conn.execute("INSERT OR IGNORE INTO authorized_users (telegram_user_id, authorized_at) VALUES (?, ?)", (user_id, _now()))
+        conn.commit()
+
+
+async def create_batch(batch_id: str, user_id: int) -> None:
+    async with _lock:
+        conn = _get_conn()
+        conn.execute("INSERT INTO mail_batches VALUES (?, ?)", (batch_id, user_id))
+        conn.commit()
+
+
+async def add_batch_item(batch_id: str, alias_id: str, address: str) -> None:
+    async with _lock:
+        conn = _get_conn()
+        conn.execute("INSERT INTO mail_batch_items (batch_id, alias_id, email_address) VALUES (?, ?, ?)", (batch_id, alias_id, address))
+        conn.commit()
+
+
+async def get_batch_items(batch_id: str, user_id: int) -> list:
+    async with _lock:
+        return _get_conn().execute(
+            "SELECT i.* FROM mail_batch_items i JOIN mail_batches b ON b.batch_id=i.batch_id WHERE b.batch_id=? AND b.telegram_user_id=? ORDER BY i.id",
+            (batch_id, user_id),
+        ).fetchall()
+
+
+async def set_batch_otp(batch_id: str, alias_id: str, code: str) -> None:
+    async with _lock:
+        conn = _get_conn()
+        conn.execute("UPDATE mail_batch_items SET otp=? WHERE batch_id=? AND alias_id=?", (code, batch_id, alias_id))
+        conn.commit()
+
+
+async def claim_mail_check(user_id: int, cooldown: int) -> bool:
+    import time
+    async with _lock:
+        conn = _get_conn()
+        now = time.time()
+        cur = conn.execute("UPDATE authorized_users SET last_mail_check=? WHERE telegram_user_id=? AND last_mail_check<=?", (now, user_id, now - cooldown))
+        conn.commit()
+        return cur.rowcount == 1

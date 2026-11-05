@@ -40,17 +40,12 @@ async def get_otp_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     for msg in messages[:20]:
         code = await find_otp_in_message(msg)
         if code:
-            sender = escape_html(pick_field(msg, "sender", "from", default="unknown"))
-            subject_esc = escape_html(pick_field(msg, "subject", default="(no subject)"))
             await database.bump_stats(user.id, otps=1)
-            text = (
-                f"🔢 <b>OTP Found</b>\n\nCode:\n<code>{code}</code>\n\n"
-                f"📧 From:\n{sender}\n\n📩 Subject:\n{subject_esc}\n\n"
-                f"Tap the code to copy."
-            )
+            text = f"code - <code>{escape_html(code)}</code>"
             await query.edit_message_text(text, parse_mode="HTML", reply_markup=keyboards.otp_found(alias_id))
             return
 
     await query.edit_message_text(
         "❌ No OTP found in the latest emails.", reply_markup=keyboards.otp_not_found(alias_id)
     )
+

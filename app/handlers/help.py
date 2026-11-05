@@ -10,7 +10,9 @@ HELP_TEXT = (
     "📋 My Emails: View your saved addresses.\n"
     "🔢 Get OTP: Check an address for a verification code.\n"
     "🗑 Delete Email: Remove an address.\n\n"
-    "Commands: /start /help /stats"
+    "📧 /gen 4: Generate 1–10 copyable emails in one message.\n"
+    "📥 Check Mail: Manually check pending OTPs; no automatic polling.\n\n"
+    "Commands: /start /help /stats /gen"
 )
 
 
@@ -34,3 +36,4 @@ async def help_callback(
         HELP_TEXT,
         reply_markup=keyboards.back_to_menu(),
     )
+

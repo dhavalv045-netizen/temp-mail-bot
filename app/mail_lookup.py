@@ -6,7 +6,7 @@ the manual "🔢 Get OTP" button (handlers/otp.py) and the cron auto-push
 
 import logging
 
-from app.inboxmail import client, pick_field
+from app.inboxmail import client, pick_field, InboxMailRateLimited
 from app.utils.formatting import html_email_to_text
 from app.utils.otp import extract_otp
 
@@ -36,6 +36,8 @@ async def find_otp_in_message(msg: dict) -> str | None:
 
     try:
         detail = await client.get_email(log_id)
+    except InboxMailRateLimited:
+        raise
     except Exception:
         logger.info("mail_lookup: body fallback fetch failed for message %s", log_id)
         return None
@@ -44,3 +46,4 @@ async def find_otp_in_message(msg: dict) -> str | None:
     html = pick_field(detail, "html_body", "html", default="")
     search_text = " ".join(filter(None, [body, html_email_to_text(html)]))
     return extract_otp(search_text)
+
