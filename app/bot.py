@@ -1,15 +1,20 @@
 import logging
 
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, TypeHandler
+from telegram import Update
 
 from app.config import TELEGRAM_BOT_TOKEN
-from app.handlers import start, help as help_handler, email, otp, admin
+from app.handlers import start, help as help_handler, email, otp, admin, batch
 
 logger = logging.getLogger("tempmail.bot")
 
 
 def build_application() -> Application:
     application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+
+    application.add_handler(TypeHandler(Update, batch.access_guard), group=-1)
+    application.add_handler(CommandHandler("gen", batch.gen_command))
+    application.add_handler(CallbackQueryHandler(batch.check_batch_callback, pattern=r"^batch:check:[0-9a-f]{16}$"))
 
     # Commands
     application.add_handler(CommandHandler("start", start.start_command))
@@ -38,3 +43,4 @@ def build_application() -> Application:
     application.add_handler(CallbackQueryHandler(otp.get_otp_callback, pattern=r"^email:otp:"))
 
     return application
+

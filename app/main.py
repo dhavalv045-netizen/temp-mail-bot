@@ -8,7 +8,6 @@ from app.config import RENDER_EXTERNAL_URL, WEBHOOK_SECRET, WEBHOOK_PATH, CRON_S
 from app import database
 from app.bot import build_application
 from app.inboxmail import client as inboxmail_client
-from app.cron import check_all_aliases_for_otp
 
 logging.basicConfig(
     level=logging.INFO,
@@ -68,18 +67,10 @@ async def health():
 
 @app.get("/cron/check-otp")
 async def cron_check_otp(token: str = ""):
-    """
-    Hit by an external scheduler (cron-job.org) every few minutes. Two jobs
-    in one request: keeps this Render Free service awake, and checks every
-    known alias for new mail, pushing any OTP found straight to the owning
-    Telegram user. See README for the cron-job.org setup steps.
-    """
+    """Legacy scheduler URL remains a health check; no mailbox API calls."""
     if not CRON_SECRET or token != CRON_SECRET:
         raise HTTPException(status_code=401, detail="Invalid or missing token")
-
-    summary = await check_all_aliases_for_otp(telegram_app.bot)
-    logger.info("cron/check-otp: %s", summary)
-    return {"status": "ok", **summary}
+    return {"status": "ok", "mode": "manual", "checked": 0}
 
 
 @app.post(WEBHOOK_PATH)
@@ -92,5 +83,6 @@ async def telegram_webhook(
 
     data = await request.json()
     update = Update.de_json(data, telegram_app.bot)
-    await telegram_app.process_update(update)
+    await telegram_app.update_queue.put(update)
     return {"ok": True}
+

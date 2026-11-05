@@ -1,8 +1,22 @@
 # Telegram Temporary Mail Bot (InboxMail + deeptracex.online)
 
 A Telegram bot front-end for your InboxMail account — create disposable
-addresses on `deeptracex.online` and get OTP codes **pushed to you
-automatically** in Telegram, no manual inbox-checking.
+addresses on `deeptracex.online` and check OTP codes manually in Telegram.
+
+## Private access and manual batches
+
+- Send the private key once in a private chat. Authorization is saved in SQLite and applies to all commands/buttons.
+- `/gen 4` creates four emails in one message; valid range is 1–10. Emails and OTPs use copyable monospace text, with `code -` below each address and no sender details.
+- Tap **Check Mail** below the batch to check pending addresses sequentially. A 15-second per-user cooldown limits repeated clicks. Completed OTPs are cached and no longer checked.
+- Partial generation retains successful emails. Provider errors stop further requests in that batch.
+- Automatic OTP polling is disabled. The legacy authenticated `/cron/check-otp` endpoint now returns health status without querying mailboxes.
+- Set `BOT_ACCESS_KEY` in the server environment to your private access key before deploying. No key or key hash is stored in the repository; new access fails closed when the variable is missing. Changing the key does not revoke already authorized users.
+- Authorization and batches persist only while the SQLite file survives. Use durable storage for `DATABASE_PATH` to retain access across redeploys. After an ephemeral disk reset, users must enter the key again.
+- Existing menus and admin commands remain available.
+
+Run mocked regression tests with `python -m unittest discover -s tests -v`.
+
+
 
 ## ✅ Status: fully wired up
 
@@ -38,8 +52,7 @@ appear in the body aren't being caught, send me a screenshot of that
 endpoint's schema the same way as before and I'll lock it in properly.
 
 **No more manual "📥 Inbox" browsing** — removed per request. The flow now
-is: Create Email → OTP arrives → bot messages you directly (via the cron
-job below). "🔢 Get OTP" still exists as an on-demand manual check.
+is: `/gen 4` → receive addresses → tap **Check Mail**. "🔢 Get OTP" still exists as an on-demand manual check.
 
 ---
 
@@ -215,31 +228,10 @@ or different, so redeploys don't spam Telegram's API.
 Open Telegram, find your bot by its username, send `/start`. You should
 see the welcome message and the main menu buttons.
 
-## P. Set up cron-job.org (auto-OTP push + keeps the bot awake)
+## P. Manual checking
 
-Render Free sleeps after ~15 minutes of no traffic. This step fixes that
-**and** makes OTPs get pushed to you automatically, without you tapping
-anything, by hitting one endpoint on a timer.
-
-1. Go to [console.cron-job.org](https://console.cron-job.org) and create a
-   free account.
-2. Click **Create cronjob**.
-3. **Title**: anything, e.g. `keep bot awake + check OTP`.
-4. **URL**:
-   ```
-   https://<your-service>.onrender.com/cron/check-otp?token=<CRON_SECRET>
-   ```
-   Replace `<your-service>` with your real Render subdomain, and
-   `<CRON_SECRET>` with the exact value you set in step J.
-5. **Schedule**: every 5 minutes (cron-job.org's free plan supports down
-   to every 1 minute, but every 5 keeps you comfortably inside InboxMail's
-   100 requests/hour Free-plan limit if you have several active aliases —
-   tighten it later if you want faster delivery and have headroom).
-6. Save. cron-job.org will start pinging that URL on schedule — check its
-   **Execution history** tab to confirm you're getting `200 OK` responses.
-
-That's it — no code changes needed for this part. This is the same
-`/cron/check-otp` endpoint `app/cron.py` implements for auto-OTP push.
+No mail polling schedule is needed. Tap **Check Mail** under a batch.
+An existing authenticated `/cron/check-otp` schedule now only returns health status.
 
 ## Q. Troubleshooting
 
@@ -300,7 +292,7 @@ your aliases (it's the source of truth) — they just won't show up under
 "My Emails" until you recreate them, since the ownership mapping was lost.
 
 If you want this mapping to survive restarts, the free-tier-friendly
-upgrade path is Render's free **persistent disk** add-on (mount it and
+upgrade path is durable storage (mount it and
 point `DATABASE_PATH` at a file inside it) — this is optional and not
 required for the bot to work correctly.
 
@@ -309,9 +301,7 @@ required for the bot to work correctly.
 - **Free-compatible**: aliases, sending mail, reading logs, everything this bot uses.
 - **Pro only** (per the docs' own labels): creating/editing/deleting *domains*
   via the API, and **Webhooks**. Since Webhooks aren't available on Free,
-  this bot uses cron-job.org polling instead (step P) to get "instant-ish"
-  OTP delivery without needing InboxMail's own push feature — typically a
-  few minutes of delay depending on your chosen interval, not truly
-  real-time. If you upgrade later, a real Webhooks integration would remove
+  this bot checks mail only when a user taps a manual check button. If you upgrade later, a real Webhooks integration would remove
   that delay entirely — that's a different `POST /telegram-notify`-style
   endpoint, not a small tweak to `cron.py`.
+
