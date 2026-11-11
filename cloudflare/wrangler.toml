@@ -9,7 +9,7 @@ DOMAIN = "accounthub.live"
 [[d1_databases]]
 binding = "DB"
 database_name = "temp-mail"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "5b20bb51-ac40-4e1d-96a3-b52d1f4c6fad"
 
 [triggers]
 crons = ["0 3 * * *"]
