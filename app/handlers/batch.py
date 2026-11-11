@@ -11,7 +11,7 @@ from telegram.error import BadRequest
 from telegram.ext import ApplicationHandlerStop
 
 from app import database
-from app.config import DOMAIN, FORWARD_TO_EMAIL
+from app.config import DOMAIN, FORWARD_TO_EMAIL, MAIL_BACKEND
 from app.inboxmail import client, InboxMailError, pick_field
 from app.mail_lookup import find_otp_in_message
 
@@ -82,7 +82,7 @@ async def gen_command(update, context):
     if user.id in _generating:
         await update.effective_message.reply_text("Your emails are still being generated. Please wait.")
         return
-    if not FORWARD_TO_EMAIL:
+    if MAIL_BACKEND == "inboxmail" and not FORWARD_TO_EMAIL:
         await update.effective_message.reply_text("Set FORWARD_TO_EMAIL in the server environment first.")
         return
     _generating.add(user.id)

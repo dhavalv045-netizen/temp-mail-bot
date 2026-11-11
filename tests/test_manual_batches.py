@@ -3,6 +3,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
+os.environ.setdefault('MAIL_BACKEND', 'inboxmail')
 os.environ.setdefault('TELEGRAM_BOT_TOKEN', '123456:test-token')
 os.environ.setdefault('INBOXMAIL_API_KEY', 'test-key')
 os.environ.setdefault('WEBHOOK_SECRET', 'test-secret')

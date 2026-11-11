@@ -1,3 +1,20 @@
+# Telegram temp mail bot — Cloudflare backend
+
+Default mail backend: Cloudflare Email Routing + Email Worker + D1. The Telegram app stays on Render. Existing commands and buttons are preserved; mail checking remains manual.
+
+**Start here: [Complete Cloudflare + Render setup (Hinglish)](docs/CLOUDFLARE_SETUP.md).**
+
+- Worker source and schema: `cloudflare/`
+- Render environment template: `render.yaml`
+- No InboxMail API key or forwarding address required in Cloudflare mode.
+- Deploy/configure the Worker and set Render environment before deploying this version.
+- Old InboxMail mailboxes are not migrated. Generate new addresses after cutover.
+- Mail storage persists in D1; existing Render SQLite bot history still needs a persistent disk to survive filesystem resets. See setup guide before relying on saved batches.
+
+## Previous InboxMail documentation (legacy / rollback only)
+
+The documentation below describes the old provider. It does not describe the default Cloudflare setup. For current instructions use the guide above. Set `MAIL_BACKEND=inboxmail` only when deliberately restoring that backend.
+
 # Telegram Temporary Mail Bot (InboxMail + deeptracex.online)
 
 A Telegram bot front-end for your InboxMail account — create disposable
