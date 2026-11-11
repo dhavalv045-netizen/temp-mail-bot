@@ -167,7 +167,7 @@ class InboxMailClient:
         domain_id = await self.resolve_domain_id()
         payload = {
             "domain_id": domain_id,
-            "prefix": prefix or secrets.token_hex(12),
+            "prefix": prefix or "".join(secrets.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(8)),
             "destinations": destinations,
             "rule_type": "fixed",
         }
