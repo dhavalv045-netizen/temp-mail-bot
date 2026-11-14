@@ -30,6 +30,10 @@ async def find_otp_in_message(msg: dict) -> str | None:
     if code:
         return code
 
+    # Cloudflare includes decoded bodies in the log response; no extra request.
+    if "text_body" in msg or "html_body" in msg:
+        return extract_otp(" ".join([msg.get("text_body") or "", " ".join(html_email_to_text(msg.get("html_body") or "").split())]))
+
     log_id = pick_field(msg, "id")
     if not log_id:
         return None

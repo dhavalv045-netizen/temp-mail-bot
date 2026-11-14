@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from app import database
-from app.config import DOMAIN, FORWARD_TO_EMAIL
+from app.config import DOMAIN, FORWARD_TO_EMAIL, MAIL_BACKEND
 from app.inboxmail import client, InboxMailError, pick_field
 from app.utils import keyboards, security
 
@@ -19,7 +19,7 @@ async def create_email_callback(update: Update, context: ContextTypes.DEFAULT_TY
     user = update.effective_user
     await database.ensure_user(user.id, user.username)
 
-    if not FORWARD_TO_EMAIL:
+    if MAIL_BACKEND == "inboxmail" and not FORWARD_TO_EMAIL:
         await query.edit_message_text(
             "🛠 <b>One setup step left</b>\n\n"
             "InboxMail aliases forward incoming mail to a real address you "
@@ -143,13 +143,13 @@ async def delete_all_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
             logger.warning("delete_alias failed during delete-all for user %s alias %s",
                             user.id, row["alias_id"])
             failures += 1
-
-    await database.delete_all_aliases(user.id)
+        else:
+            await database.delete_alias(user.id, row["alias_id"])
 
     if failures:
         text = (
             f"🗑 Deleted {len(aliases) - failures} of {len(aliases)} emails.\n"
-            f"{failures} couldn't be removed on InboxMail's side but have been cleared from your list."
+            f"{failures} couldn't be removed and remain in your list. Please retry."
         )
     else:
         text = "🗑 All emails deleted successfully."

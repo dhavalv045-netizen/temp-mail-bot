@@ -1,47 +1,8 @@
-"""
-InboxMail API client.
+"""Mail backend adapter.
 
-Confirmed via live "Try it out" testing in your Swagger docs
-(app.useinbox.email/developer/docs) on 2026-09-09:
-
-  Auth:      Authorization: Bearer <api_key>            (header, never in URL)
-  Base URL:  https://api.useinbox.email
-  Rate limits (Free plan): 100 req/hour, 500 req/day
-              Headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
-
-  Response envelope (confirmed on POST /api/v1/aliases, both success and
-  error cases) — ALL endpoints appear to wrap responses like this:
-    Success: {"success": true,  "data": {...actual payload...}}
-    Error:   {"success": false, "error": {"code": "...", "message": "..."}}
-  `_request()` below unwraps this automatically, so every method in this
-  class returns the *inner* payload directly, and raises InboxMailError
-  (with the real `error.message` in the logs) on any failure.
-
-  ✅ CONFIRMED: POST /api/v1/aliases
-    Request body: {"domain_id": "<uuid>", "prefix": "contact",
-                    "destinations": ["personal@gmail.com"], "rule_type": "fixed"}
-    Response data: {"id", "domain_id", "prefix", "destinations", "rule_type",
-                     "status", "created_at", "updated_at"}
-    Note: there's no "email"/"address" field — the alias's full address is
-    just `prefix + "@" + <your domain>`, which we build ourselves.
-
-  ✅ CONFIRMED: GET /api/v1/aliases/{id}/logs
-    Response data.logs[]: {"id", "domain_id", "alias_id", "sender",
-      "recipient", "subject", "status", "direction", "s3_message_id",
-      "has_attachments", "size_bytes", "error_message", "created_at"}
-    No body/content field — only metadata + subject line.
-
-  ⚠️ STILL OPEN: GET /api/v1/emails/{id} response shape (for full body
-  text) isn't confirmed. app/mail_lookup.py makes a best-effort, defensively
-  -parsed attempt at it as a fallback when a code isn't found in the
-  subject alone — if the shape doesn't match, it silently gives up rather
-  than guessing wrong.
-
-  Endpoint map (paths confirmed from the Swagger nav):
-    Domains:  GET/POST /api/v1/domains, GET/PUT/DELETE /api/v1/domains/{id}, POST .../verify
-    Aliases:  GET/POST /api/v1/aliases, GET/PUT/DELETE /api/v1/aliases/{id}, GET .../logs
-    Emails:   POST /api/v1/emails/send (✅ confirmed separately), GET /api/v1/emails,
-              GET /api/v1/emails/{id}, GET .../events, POST .../verify
+Cloudflare is the default; cloudflare/src/index.js implements the same
+small response contract used by the handlers. MAIL_BACKEND=inboxmail is
+retained for rollback. Historical class names are compatibility names.
 """
 
 import asyncio
@@ -52,6 +13,7 @@ from typing import Any
 import httpx
 
 from app.config import (
+    MAIL_BACKEND, CLOUDFLARE_MAIL_URL, CLOUDFLARE_MAIL_TOKEN,
     INBOXMAIL_API_KEY,
     INBOXMAIL_BASE_URL,
     INBOXMAIL_MAX_RETRIES,
@@ -59,7 +21,7 @@ from app.config import (
     DOMAIN,
 )
 
-logger = logging.getLogger("tempmail.inboxmail")
+logger = logging.getLogger("tempmail.mail_backend")
 
 
 def pick_field(data: dict, *keys: str, default=None):
@@ -83,11 +45,11 @@ class InboxMailRateLimited(InboxMailError):
 class InboxMailClient:
     def __init__(self) -> None:
         self._headers = {
-            "Authorization": f"Bearer {INBOXMAIL_API_KEY}",
+            "Authorization": f"Bearer {CLOUDFLARE_MAIL_TOKEN if MAIL_BACKEND == 'cloudflare' else INBOXMAIL_API_KEY}",
             "Content-Type": "application/json",
         }
         self._client = httpx.AsyncClient(
-            base_url=INBOXMAIL_BASE_URL,
+            base_url=CLOUDFLARE_MAIL_URL if MAIL_BACKEND == "cloudflare" else INBOXMAIL_BASE_URL,
             headers=self._headers,
             timeout=INBOXMAIL_TIMEOUT_SECONDS,
         )
@@ -109,20 +71,20 @@ class InboxMailClient:
                 resp = await self._client.request(method, path, json=json, params=params)
             except httpx.TimeoutException as exc:
                 last_exc = exc
-                logger.warning("InboxMail timeout (attempt %s/%s) on %s %s",
+                logger.warning("Mail backend timeout (attempt %s/%s) on %s %s",
                                 attempt, INBOXMAIL_MAX_RETRIES, method, path)
                 await asyncio.sleep(2 ** attempt)
                 continue
             except httpx.HTTPError as exc:
                 last_exc = exc
-                logger.warning("InboxMail network error (attempt %s/%s) on %s %s: %s",
+                logger.warning("Mail backend network error (attempt %s/%s) on %s %s: %s",
                                 attempt, INBOXMAIL_MAX_RETRIES, method, path, exc.__class__.__name__)
                 await asyncio.sleep(2 ** attempt)
                 continue
 
             if resp.status_code == 429:
                 retry_after = float(resp.headers.get("Retry-After", 2 ** attempt))
-                logger.warning("InboxMail 429 rate limited on %s %s, retry_after=%s",
+                logger.warning("Mail backend 429 rate limited on %s %s, retry_after=%s",
                                 method, path, retry_after)
                 if attempt == INBOXMAIL_MAX_RETRIES:
                     raise InboxMailRateLimited(retry_after)
@@ -130,7 +92,7 @@ class InboxMailClient:
                 continue
 
             if resp.status_code >= 500:
-                logger.warning("InboxMail %s on %s %s (attempt %s/%s)",
+                logger.warning("Mail backend %s on %s %s (attempt %s/%s)",
                                 resp.status_code, method, path, attempt, INBOXMAIL_MAX_RETRIES)
                 await asyncio.sleep(2 ** attempt)
                 continue
@@ -138,15 +100,15 @@ class InboxMailClient:
             try:
                 body = resp.json() if resp.content else {}
             except ValueError as exc:
-                logger.error("InboxMail returned non-JSON body on %s %s", method, path)
-                raise InboxMailError("InboxMail returned an unexpected response") from exc
+                logger.error("Mail backend returned non-JSON body on %s %s", method, path)
+                raise InboxMailError("Mail backend returned an unexpected response") from exc
 
             if resp.status_code >= 400:
                 # Confirmed envelope: {"success": false, "error": {"code","message"}}
                 err = body.get("error", {}) if isinstance(body, dict) else {}
                 msg = err.get("message", f"HTTP {resp.status_code}")
                 code = err.get("code", "UNKNOWN")
-                logger.error("InboxMail %s error on %s %s | %s: %s",
+                logger.error("Mail backend %s error on %s %s | %s: %s",
                               resp.status_code, method, path, code, msg)
                 raise InboxMailError(msg)
 
@@ -155,9 +117,9 @@ class InboxMailClient:
                 return body["data"]
             return body
 
-        logger.error("InboxMail request failed after %s attempts: %s %s",
+        logger.error("Mail backend request failed after %s attempts: %s %s",
                       INBOXMAIL_MAX_RETRIES, method, path)
-        raise InboxMailError("InboxMail is temporarily unreachable") from last_exc
+        raise InboxMailError("Mail backend is temporarily unreachable") from last_exc
 
     # ------------------------------------------------------------------
     # Domains
@@ -205,7 +167,7 @@ class InboxMailClient:
         domain_id = await self.resolve_domain_id()
         payload = {
             "domain_id": domain_id,
-            "prefix": prefix or secrets.token_hex(4),
+            "prefix": prefix or "".join(secrets.choice("abcdefghijklmnopqrstuvwxyz0123456789") for _ in range(8)),
             "destinations": destinations,
             "rule_type": "fixed",
         }

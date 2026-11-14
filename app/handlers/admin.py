@@ -94,4 +94,4 @@ async def health_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     except InboxMailError:
         api_status = "❌ unreachable"
 
-    await update.message.reply_text(f"📩 InboxMail API: {api_status}")
+    await update.message.reply_text(f"📩 Mail backend: {api_status}")

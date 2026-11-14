@@ -28,16 +28,12 @@ async def lifespan(app: FastAPI):
 
     if RENDER_EXTERNAL_URL:
         webhook_url = f"{RENDER_EXTERNAL_URL}{WEBHOOK_PATH}"
-        current = await telegram_app.bot.get_webhook_info()
-        if current.url != webhook_url:
-            await telegram_app.bot.set_webhook(
-                url=webhook_url,
-                secret_token=WEBHOOK_SECRET,
-                allowed_updates=Update.ALL_TYPES,
-            )
-            logger.info("Webhook configured")
-        else:
-            logger.info("Webhook already up to date, skipping re-registration")
+        # Re-register to also apply a rotated secret at an unchanged URL.
+        await telegram_app.bot.set_webhook(
+            url=webhook_url, secret_token=WEBHOOK_SECRET,
+            allowed_updates=Update.ALL_TYPES,
+        )
+        logger.info("Webhook configured")
     else:
         logger.warning(
             "RENDER_EXTERNAL_URL not set — skipping automatic webhook registration "

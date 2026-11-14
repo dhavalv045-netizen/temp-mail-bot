@@ -42,9 +42,21 @@ def _optional(name: str, default: str = "") -> str:
 TELEGRAM_BOT_TOKEN = _require("TELEGRAM_BOT_TOKEN")
 
 # --- InboxMail ---
-INBOXMAIL_API_KEY = _require("INBOXMAIL_API_KEY")
+MAIL_BACKEND = _optional("MAIL_BACKEND", "cloudflare").lower()
+if MAIL_BACKEND not in {"cloudflare", "inboxmail"}:
+    raise RuntimeError("MAIL_BACKEND must be cloudflare or inboxmail")
+CLOUDFLARE_MAIL_URL = _optional("CLOUDFLARE_MAIL_URL").rstrip("/")
+CLOUDFLARE_MAIL_TOKEN = _optional("CLOUDFLARE_MAIL_TOKEN")
+if MAIL_BACKEND == "cloudflare":
+    from urllib.parse import urlparse
+    parsed = urlparse(CLOUDFLARE_MAIL_URL)
+    if parsed.scheme != "https" or not parsed.netloc or parsed.path or parsed.query or parsed.fragment or parsed.username:
+        raise RuntimeError("Set CLOUDFLARE_MAIL_URL to the HTTPS Worker origin, without a path")
+    if len(CLOUDFLARE_MAIL_TOKEN) < 32:
+        raise RuntimeError("CLOUDFLARE_MAIL_TOKEN must contain at least 32 characters")
+INBOXMAIL_API_KEY = _require("INBOXMAIL_API_KEY") if MAIL_BACKEND == "inboxmail" else ""
 INBOXMAIL_BASE_URL = _optional("INBOXMAIL_BASE_URL", "https://api.useinbox.email")
-DOMAIN = _optional("DOMAIN", "deeptracex.online")
+DOMAIN = _optional("DOMAIN", "accounthub.live")
 
 # Real email address that created aliases forward to. InboxMail's aliases
 # are forward-only (confirmed via their API docs) — every alias needs at

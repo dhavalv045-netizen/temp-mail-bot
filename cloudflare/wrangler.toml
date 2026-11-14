@@ -1,0 +1,15 @@
+name = "temp-mail-backend"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+workers_dev = true
+
+[vars]
+DOMAIN = "accounthub.live"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "temp-mail"
+database_id = "5b20bb51-ac40-4e1d-96a3-b52d1f4c6fad"
+
+[triggers]
+crons = ["0 3 * * *"]
