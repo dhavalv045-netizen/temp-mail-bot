@@ -81,7 +81,7 @@ export async function receive(message, env) {
   ]);
   if (env.FULL_MAIL_URL) {
     const result = await fetch(env.FULL_MAIL_URL, {
-      method: 'POST', redirect: 'error', body: raw,
+      method: 'POST', redirect: 'manual', body: raw,
       headers: {Authorization: `Bearer ${env.BACKEND_TOKEN}`, 'Content-Type': 'message/rfc822', 'X-Mail-Alias': alias.id, 'X-Mail-Recipient': address}
     });
     if (!result.ok) throw new Error(`Full mail delivery failed (${result.status})`);
