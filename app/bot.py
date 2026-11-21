@@ -16,6 +16,8 @@ def build_application() -> Application:
     application.add_handler(CommandHandler("gen", batch.gen_command))
     application.add_handler(CallbackQueryHandler(batch.check_batch_callback, pattern=r"^batch:check:[0-9a-f]{16}$"))
 
+    application.add_handler(CommandHandler("full", admin.full_command))
+
     # Commands
     application.add_handler(CommandHandler("start", start.start_command))
     application.add_handler(CommandHandler("help", help_handler.help_command))

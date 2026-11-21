@@ -1,4 +1,8 @@
 import logging
+from secrets import compare_digest
+from app.config import CLOUDFLARE_MAIL_TOKEN, DOMAIN
+from app.full_mail import deliver
+from app.utils.security import is_admin
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Header, HTTPException
@@ -82,3 +86,16 @@ async def telegram_webhook(
     await telegram_app.update_queue.put(update)
     return {"ok": True}
 
+
+@app.post("/cloudflare/full-mail")
+async def full_mail(request: Request):
+    token = request.headers.get("authorization", "").encode()
+    if not CLOUDFLARE_MAIL_TOKEN or not compare_digest(token, f"Bearer {CLOUDFLARE_MAIL_TOKEN}".encode()):
+        raise HTTPException(status_code=401)
+    alias = request.headers.get("x-mail-alias", "")
+    recipient = request.headers.get("x-mail-recipient", "")
+    owner = await database.get_alias_owner(alias)
+    if recipient != f"{alias}@{DOMAIN}" or owner is None or not is_admin(owner) or not database.full_mail_enabled(owner):
+        return {"delivered": False}
+    await deliver(telegram_app.bot, owner, recipient, await request.body())
+    return {"delivered": True}

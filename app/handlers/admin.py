@@ -42,7 +42,7 @@ async def admin_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         f"📧 Total aliases: {totals['aliases']}\n"
         f"📩 API status: use /health\n"
         f"⚡ Recent errors: check server logs\n\n"
-        "Commands: /stats /users /broadcast /health"
+        "Commands: /stats /users /broadcast /health\nFull mail: /full on or /full off"
     )
     await update.message.reply_html(text)
 
@@ -95,3 +95,15 @@ async def health_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         api_status = "❌ unreachable"
 
     await update.message.reply_text(f"📩 Mail backend: {api_status}")
+
+async def full_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user_id = update.effective_user.id
+    if not is_admin(user_id) or update.effective_chat.type != "private":
+        await update.message.reply_text(ADMIN_ONLY_TEXT)
+        return
+    if context.args not in (["on"], ["off"]):
+        await update.message.reply_text("Usage: /full on or /full off")
+        return
+    enabled = context.args == ["on"]
+    database.set_full_mail(user_id, enabled)
+    await update.message.reply_text("Full mail ON for your addresses." if enabled else "Full mail OFF.")

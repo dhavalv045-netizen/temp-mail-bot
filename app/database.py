@@ -49,6 +49,9 @@ def init_db() -> None:
     conn = _get_conn()
     conn.executescript(
         """
+        CREATE TABLE IF NOT EXISTS full_mail_settings (
+            telegram_user_id INTEGER PRIMARY KEY
+        );
         CREATE TABLE IF NOT EXISTS authorized_users (
             telegram_user_id INTEGER PRIMARY KEY,
             authorized_at TEXT NOT NULL,
@@ -289,3 +292,17 @@ async def claim_mail_check(user_id: int, cooldown: int) -> bool:
         cur = conn.execute("UPDATE authorized_users SET last_mail_check=? WHERE telegram_user_id=? AND last_mail_check<=?", (now, user_id, now - cooldown))
         conn.commit()
         return cur.rowcount == 1
+
+def full_mail_enabled(user_id: int) -> bool:
+    return _get_conn().execute(
+        "SELECT 1 FROM full_mail_settings WHERE telegram_user_id=?", (user_id,)
+    ).fetchone() is not None
+
+
+def set_full_mail(user_id: int, enabled: bool) -> None:
+    conn = _get_conn()
+    with conn:
+        if enabled:
+            conn.execute("INSERT OR IGNORE INTO full_mail_settings VALUES (?)", (user_id,))
+        else:
+            conn.execute("DELETE FROM full_mail_settings WHERE telegram_user_id=?", (user_id,))

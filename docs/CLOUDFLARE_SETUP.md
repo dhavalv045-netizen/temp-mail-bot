@@ -121,3 +121,12 @@ Official references:
 - https://developers.cloudflare.com/d1/get-started/
 - https://developers.cloudflare.com/email-service/platform/pricing/
 - https://developers.cloudflare.com/workers/platform/limits/
+
+## Admin full-mail delivery
+
+Deploy the bot and Worker from this branch. Set the Worker variable `FULL_MAIL_URL`
+to your deployed bot's HTTPS URL ending in `/cloudflare/full-mail`. The Worker
+authenticates with its existing BACKEND_TOKEN, matching the bot's CLOUDFLARE_MAIL_TOKEN.
+In a private chat send /full on. Send a test email to an alias created by that admin.
+Telegram displays the recipient, subject, readable body and an original .eml with
+the original formatting and attachments. /full off disables this delivery.

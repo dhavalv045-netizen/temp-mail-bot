@@ -68,7 +68,8 @@ export async function receive(message, env) {
   if (!alias) return message.setReject('Unknown or deleted address');
   // Bound parsing/storage work on the free plan; attachments are not stored.
   if (message.rawSize > 1024 * 1024) return message.setReject('Message exceeds 1 MiB');
-  const mail = await PostalMime.parse(message.raw);
+  const raw = await new Response(message.raw).arrayBuffer();
+  const mail = await PostalMime.parse(raw);
   const id = crypto.randomUUID();
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO messages(id,alias_id,sender,recipient,subject,text_body,html_body,created_at)
@@ -78,6 +79,13 @@ export async function receive(message, env) {
     env.DB.prepare(`DELETE FROM messages WHERE alias_id=? AND id NOT IN
       (SELECT id FROM messages WHERE alias_id=? ORDER BY created_at DESC, rowid DESC LIMIT 20)`).bind(alias.id, alias.id)
   ]);
+  if (env.FULL_MAIL_URL) {
+    const result = await fetch(env.FULL_MAIL_URL, {
+      method: 'POST', redirect: 'error', body: raw,
+      headers: {Authorization: `Bearer ${env.BACKEND_TOKEN}`, 'Content-Type': 'message/rfc822', 'X-Mail-Alias': alias.id, 'X-Mail-Recipient': address}
+    });
+    if (!result.ok) throw new Error(`Full mail delivery failed (${result.status})`);
+  }
 }
 
 export default {
