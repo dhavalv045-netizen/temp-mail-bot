@@ -19,7 +19,7 @@ services:
       - key: ADMIN_TELEGRAM_ID
         sync: false
       - key: DOMAIN
-        value: accounthub.live
+        value: accounthub.space
       - key: WEBHOOK_SECRET
         sync: false
       - key: CRON_SECRET
