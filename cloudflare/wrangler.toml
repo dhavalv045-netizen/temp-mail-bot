@@ -4,7 +4,7 @@ compatibility_date = "2026-11-01"
 workers_dev = true
 
 [vars]
-DOMAIN = "accounthub.live"
+DOMAIN = "accounthub.space"
 
 [[d1_databases]]
 binding = "DB"
